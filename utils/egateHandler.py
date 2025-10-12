@@ -24,7 +24,7 @@ def collect_data(text, name, endtag):
 
 
 def login(studentid: str, password: str) -> requests.Session:
-    url = r"https://ids.shanghaitech.edu.cn/authserver/login"
+    url = r"https://ids.shanghaitech.edu.cn/authserver/login?service=https%3A%2F%2Felearning.shanghaitech.edu.cn%3A8443%2Fwebapps%2Fbb-BB-BBLEARN%2Findex.jsp"
     new_session = requests.session()
     new_session.cookies.clear()
     response = new_session.get(url)
@@ -50,7 +50,6 @@ def login(studentid: str, password: str) -> requests.Session:
         "rmShown": rmShown,
     }
     response = new_session.post(url, data=data, headers=headers, verify=False, allow_redirects=True)
-    response = new_session.get("https://elearning.shanghaitech.edu.cn:8443/webapps/login/", headers=headers, allow_redirects=True)
     xml_result = response.text
     soup = BeautifulSoup(xml_result, "html.parser")
     inputs = soup.find_all("input")
