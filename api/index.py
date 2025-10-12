@@ -18,12 +18,12 @@ def add_cors_headers(response):
 @app.route("/api/gradescope", methods=["POST"])
 def gsHandler() -> flask.Response:
     # Get payload from request
-    payload = flask.request.json
+    payload = flask.request.get_json()
 
     # Login
     gs = Gradescope(payload["email"], payload["password"])
     if not gs.logged_in:
-        return {"status": "error", "message": "Invalid email or password"}
+        return flask.jsonify({"status": "error", "message": "Invalid email or password"})
 
     # Format response
     data = []
@@ -31,6 +31,7 @@ def gsHandler() -> flask.Response:
     for course in gs.get_courses(role=Role.STUDENT):
         # print(course)
         for assignment in gs.get_assignments(course):
+            due = [None, None]
             if assignment["dueDate"]:
                 due = assignment["dueDate"]
             data.append(
@@ -46,14 +47,13 @@ def gsHandler() -> flask.Response:
                 }
             )
 
-    return {"status": "success", "data": data}
+    return flask.jsonify({"status": "success", "data": data})
 
-
-@app.route("/api/blackboard", methods=["POST"])
-def bbHandler() -> flask.Response:
+@app.route("/api/exam", methods=["POST"])
+def eamsExamHandler() -> flask.Response:
     # Get payload from request
     urllib3.disable_warnings()
-    payload = flask.request.json
+    payload = flask.request.get_json()
 
     # Login
     session = egateHandler.login(payload["studentid"], payload["password"])
@@ -66,15 +66,36 @@ def bbHandler() -> flask.Response:
     # Format response
     data = egateHandler.getBB(session)
 
-    urllib3.warnings.simplefilter("always", urllib3.exceptions.InsecureRequestWarning)
+    # urllib3.warnings.simplefilter("always", urllib3.exceptions.InsecureRequestWarning)
 
-    return {"status": "success", "data": data}
+    return flask.jsonify({"status": "success", "data": data})
+
+@app.route("/api/blackboard", methods=["POST"])
+def bbHandler() -> flask.Response:
+    # Get payload from request
+    urllib3.disable_warnings()
+    payload = flask.request.get_json()
+
+    # Login
+    session = egateHandler.login(payload["studentid"], payload["password"])
+    # if (not bb.logged_in):
+    #     return {
+    #         'status': 'error',
+    #         'message': 'Invalid username or password'
+    #     }
+
+    # Format response
+    data = egateHandler.getBB(session)
+
+    # urllib3.warnings.simplefilter("always", urllib3.exceptions.InsecureRequestWarning)
+
+    return flask.jsonify({"status": "success", "data": data})
 
 
 @app.route("/api/hydro", methods=["POST"])
 def ojHandler() -> flask.Response:
     # Get payload from request
-    payload = flask.request.json
+    payload = flask.request.get_json()
 
     # Login
     session = hydroHandler.login(payload["username"], payload["password"])
@@ -82,13 +103,13 @@ def ojHandler() -> flask.Response:
     # Format response
     data = hydroHandler.getHomework(session)
 
-    return {"status": "success", "data": data}
+    return flask.jsonify({"status": "success", "data": data})
 
 
 # Handle Not Found
 @app.errorhandler(404)
 def page_not_found(e):
-    return {"status": "error", "message": "Not Found: " + flask.request.url}
+    return flask.jsonify({"status": "error", "message": "Not Found: " + flask.request.url})
 
 
 if __name__ == "__main__":

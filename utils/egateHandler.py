@@ -3,6 +3,7 @@ import requests
 import base64
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
+from bs4 import BeautifulSoup
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36 Edg/115.0.1901.188",
@@ -23,7 +24,7 @@ def collect_data(text, name, endtag):
 
 
 def login(studentid: str, password: str) -> requests.Session:
-    url = r"https://ids.shanghaitech.edu.cn/authserver/login?service=https%3A%2F%2Felearning.shanghaitech.edu.cn%3A8443%2Fwebapps%2Fbb-BB-BBLEARN%2Findex.jsp"
+    url = r"https://ids.shanghaitech.edu.cn/authserver/login"
     new_session = requests.session()
     new_session.cookies.clear()
     response = new_session.get(url)
@@ -37,7 +38,7 @@ def login(studentid: str, password: str) -> requests.Session:
     pkcs7_padded_password = pad(padded_password, 16, "pkcs7")
     iv = b"Nu1L" * 4
     aes = AES.new(key.encode(), AES.MODE_CBC, iv)
-    password = base64.b64encode(aes.encrypt(pkcs7_padded_password))
+    password = base64.b64encode(aes.encrypt(pkcs7_padded_password)).decode()
 
     data = {
         "username": studentid,
@@ -48,17 +49,26 @@ def login(studentid: str, password: str) -> requests.Session:
         "_eventId": _eventId,
         "rmShown": rmShown,
     }
-    response = new_session.post(url, data=data, headers=headers, verify=False)
+    response = new_session.post(url, data=data, headers=headers, verify=False, allow_redirects=True)
+    response = new_session.get("https://elearning.shanghaitech.edu.cn:8443/webapps/login/", headers=headers, allow_redirects=True)
+    xml_result = response.text
+    soup = BeautifulSoup(xml_result, "html.parser")
+    inputs = soup.find_all("input")
+    input_data = {inp.get("name"): inp.get("value") for inp in inputs if inp.get("name")}
+    response = new_session.post("https://elearning.shanghaitech.edu.cn:8443/webapps/bb-sso-BBLEARN/execute/authValidate/customLogin", data=input_data, headers=headers, verify=False, allow_redirects=True)
     return new_session
 
 
 def getBB(sess: requests.Session):
+    print(sess.cookies.get_dict()["session_id"], sess.cookies.get_dict()["s_session_id"])
     response = sess.get(
         "https://elearning.shanghaitech.edu.cn:8443/webapps/calendar/calendarData/allCourseEvents?start="
         + str(int(datetime.now().timestamp()) * 1000),
         headers=headers,
         verify=False,
     )
+
+    assert response.status_code == 200, f"Login failed ({response.status_code}), please check your credentials."
 
     response = response.json()
 
