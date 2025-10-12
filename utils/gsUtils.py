@@ -147,6 +147,7 @@ class Gradescope:
         self._response_check(response)
         soup = BeautifulSoup(response.text, 'html.parser')
         token_input = soup.find('input', attrs={'name': 'authenticity_token'})
+        authenticity_token = ''
 
         if token_input:
             authenticity_token = token_input.get('value')
@@ -199,11 +200,14 @@ class Gradescope:
         soup = BeautifulSoup(response.text, 'html.parser')
 
         courses = list()
-        current_heading = soup.find('h1', string=ROLE_MAP[role.value])
+        current_heading = soup.find('h1', text=ROLE_MAP[role.value])
+        if not current_heading:
+            current_heading = soup.find('h2', text=ROLE_MAP[role.value]) # New UI
         if not current_heading:
             current_heading = soup.find('h1', class_ ='pageHeading')
         if current_heading:
             course_lists = current_heading.find_next_sibling('div', class_='courseList')
+            assert course_lists, f'Course list not found for Role: {role}'
             for term in course_lists.find_all(class_='courseList--term'):
                 term_name = term.get_text(strip=True)
                 courses_container = term.find_next_sibling(class_='courseList--coursesForTerm')
@@ -247,12 +251,18 @@ class Gradescope:
         tables = soup.find_all('table')
         assignments = list()
         if tables:
-            assignments_data = tables[0].find('tbody').find_all('tr')
+            tbody = tables[0].find('tbody')
+            if not tbody:
+                return assignments
+            assignments_data = tbody.find_all('tr')
             for assignment in assignments_data:
                 header = assignment.find('th')
                 cells = assignment.find_all('td')
+                # skip malformed rows
+                if not cells or len(cells) < 2:
+                    continue
                 # Title
-                title = header.get_text(strip=True)
+                title = header.get_text(strip=True) if header else ''
                 url = course.get_url()
                 # Status
                 status = cells[0].get_text(strip=True)
@@ -269,9 +279,25 @@ class Gradescope:
                 if releaseDate:
                     releaseDate = releaseDate.get('datetime')
                 
-                dueDate = cells[1].find_all('time', class_='submissionTimeChart--dueDate')
-                if dueDate:
-                    dueDate = list(map(lambda x: datetime.strptime(x.get('datetime'), "%Y-%m-%d %H:%M:%S %z").timestamp(), dueDate))
+                due_elems = cells[1].find_all('time', class_='submissionTimeChart--dueDate')
+                dueDate = None
+                if due_elems:
+                    dueDate = []
+                    for td in due_elems:
+                        dt_attr = td.get('datetime')
+                        if not dt_attr:
+                            continue
+                        try:
+                            dt_attr_str = str(dt_attr)
+                            due_ts = datetime.strptime(dt_attr_str, "%Y-%m-%d %H:%M:%S %z").timestamp()
+                        except Exception:
+                            # fallback: try a more permissive ISO format without timezone
+                            try:
+                                dt_attr_str = str(dt_attr)
+                                due_ts = datetime.strptime(dt_attr_str, "%Y-%m-%dT%H:%M").timestamp()
+                            except Exception:
+                                continue
+                        dueDate.append(due_ts)
                 
                 assignments.append({
                     'title': title,
