@@ -29,6 +29,7 @@ const APIList = [
       }
     ],
     api: "/api/hydro",
+    closing: "Reworking the backend, temporarily closed",
   },
   {
     name: "Gradescope",
@@ -261,7 +262,13 @@ function App() {
                               type={formitem.type}
                               autoComplete={`${item.name}-${formitem.name}`}
                               defaultValue={localStorage.getItem(`${item.name}-${formitem.name}`) || ""}
+                              disabled={item.closing !== undefined}
                             />))}
+                            {item.closing && (
+                              <Typography variant="body2" color="error">
+                                {item.closing}
+                              </Typography>
+                            )}
                         </CardContent>
                         <CardActions>
                           {isLoading[index] ? (<LinearProgress sx={{ width: '100%' }} />) : (<></>)}
