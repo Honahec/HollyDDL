@@ -203,8 +203,7 @@ class Gradescope:
         current_heading = soup.find('h1', text=ROLE_MAP[role.value])
         if not current_heading:
             current_heading = soup.find('h2', text=ROLE_MAP[role.value]) # New UI
-        if not current_heading:
-            current_heading = soup.find('h1', class_ ='pageHeading')
+        
         if current_heading:
             course_lists = current_heading.find_next_sibling('div', class_='courseList')
             assert course_lists, f'Course list not found for Role: {role}'
@@ -225,8 +224,24 @@ class Gradescope:
                                 )
                             )
         else:
-            log.warning(f'Cannot find heading for Role: {role}')
-            # raise ResponseError(f'Cannot find heading for Role: {role}')
+            all_course_lists = soup.find_all('div', class_='courseList')
+            for course_list in all_course_lists:
+                for term in course_list.find_all(class_='courseList--term'):
+                    term_name = term.get_text(strip=True)
+                    courses_container = term.find_next_sibling(class_='courseList--coursesForTerm')
+                    if courses_container:
+                        for course in courses_container.find_all(class_='courseBox'):
+                            if course.name == 'a':
+                                courses.append(
+                                    Course(
+                                        course_id=self._parse_int(course.get('href', '').split('/')[-1]),
+                                        url=course.get('href', None),
+                                        role='student',
+                                        term=term_name,
+                                        short_name=course.find(class_='courseBox--shortname').get_text(strip=True),
+                                        full_name=course.find(class_='courseBox--name').get_text(strip=True)
+                                    )
+                                )
         return courses
 
     def get_assignments(self, course: Course):
